@@ -90,9 +90,12 @@ class ApiService {
     try {
       final res = await _dio.post(
         '$userBase/app_api/v2/get_user_login_token',
-        data: {'email': email, 'password': password},
+        data: {'userMail': email, 'userPass': password},
         options: Options(
-          headers: {'X-Requested-With': 'XMLHttpRequest'},
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Referer': 'https://www.88ipa.com/user/login.html',
+          },
           contentType: Headers.formUrlEncodedContentType,
         ),
       );
@@ -135,5 +138,30 @@ class ApiService {
     }
     await _prefs?.setStringList(
         'favorites', favs.map((e) => e.toString()).toList());
+  }
+
+  // ============ 播放历史/续播 ============
+  Future<Map<int, int>> getPlayHistory() async {
+    final map = _prefs?.getStringList('play_history') ?? [];
+    final result = <int, int>{};
+    for (final s in map) {
+      final parts = s.split(':');
+      if (parts.length == 2) {
+        result[int.tryParse(parts[0]) ?? 0] = int.tryParse(parts[1]) ?? 0;
+      }
+    }
+    return result;
+  }
+
+  Future<void> savePlayHistory(int dramaId, int episodeIndex) async {
+    final history = await getPlayHistory();
+    history[dramaId] = episodeIndex;
+    await _prefs?.setStringList(
+        'play_history', history.entries.map((e) => '${e.key}:${e.value}').toList());
+  }
+
+  Future<int> getLastEpisode(int dramaId) async {
+    final history = await getPlayHistory();
+    return history[dramaId] ?? 0;
   }
 }

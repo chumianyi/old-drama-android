@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import '../models/drama.dart';
 import '../services/api_service.dart';
@@ -17,6 +18,7 @@ class _DetailScreenState extends State<DetailScreen> {
   bool _isFav = false;
   int _currentEpisode = 0;
   VideoPlayerController? _videoController;
+  bool _isFullscreen = false;
 
   @override
   void initState() {
@@ -27,37 +29,65 @@ class _DetailScreenState extends State<DetailScreen> {
   Future<void> _load() async {
     final detail = await ApiService().fetchDetail(widget.drama.id);
     final favs = await ApiService().getFavorites();
+    final lastEp = await ApiService().getLastEpisode(widget.drama.id);
     if (!mounted) return;
     setState(() {
       _detail = detail;
       _isFav = favs.contains(widget.drama.id);
+      _currentEpisode = lastEp;
       _loading = false;
     });
     if (detail != null && detail.episodes.isNotEmpty) {
-      _playEpisode(0);
+      _playEpisode(_currentEpisode);
     }
   }
 
   Future<void> _playEpisode(int index) async {
     if (_detail == null || _detail!.episodes.isEmpty) return;
+    index = index.clamp(0, _detail!.episodes.length - 1);
     setState(() => _currentEpisode = index);
     final ep = _detail!.episodes[index];
     _videoController?.dispose();
     _videoController = VideoPlayerController.networkUrl(Uri.parse(ep.videoUrl));
     await _videoController!.initialize();
     await _videoController!.play();
+    await ApiService().savePlayHistory(widget.drama.id, index);
     if (!mounted) return;
     setState(() {});
   }
 
+  void _toggleFullscreen() {
+    setState(() => _isFullscreen = !_isFullscreen);
+    if (_isFullscreen) {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    } else {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+      ]);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
+  }
+
   @override
   void dispose() {
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _videoController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isFullscreen && _videoController != null && _videoController!.value.isInitialized) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: _buildPlayer(),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.drama.title, maxLines: 1),
@@ -82,58 +112,7 @@ class _DetailScreenState extends State<DetailScreen> {
                     children: [
                       AspectRatio(
                         aspectRatio: 16 / 9,
-                        child: _videoController != null &&
-                                _videoController!.value.isInitialized
-                            ? Container(
-                                color: Colors.black,
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    VideoPlayer(_videoController!),
-                                    Positioned(
-                                      bottom: 0,
-                                      left: 0,
-                                      right: 0,
-                                      child: Container(
-                                        color: Colors.black54,
-                                        child: Row(
-                                          children: [
-                                            IconButton(
-                                              icon: Icon(
-                                                _videoController!.value.isPlaying
-                                                    ? Icons.pause
-                                                    : Icons.play_arrow,
-                                                color: Colors.white,
-                                              ),
-                                              onPressed: () {
-                                                setState(() {
-                                                  _videoController!.value.isPlaying
-                                                      ? _videoController!.pause()
-                                                      : _videoController!.play();
-                                                });
-                                              },
-                                            ),
-                                            Expanded(
-                                              child: VideoProgressIndicator(
-                                                _videoController!,
-                                                allowScrubbing: true,
-                                                colors: const VideoProgressColors(
-                                                  playedColor: Colors.pink,
-                                                  backgroundColor: Colors.white24,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : Container(
-                                color: Colors.black,
-                                child: const Center(
-                                    child: CircularProgressIndicator())),
+                        child: _buildPlayer(),
                       ),
                       Padding(
                         padding: const EdgeInsets.all(16),
@@ -144,7 +123,7 @@ class _DetailScreenState extends State<DetailScreen> {
                                 style: const TextStyle(
                                     fontSize: 20, fontWeight: FontWeight.bold)),
                             const SizedBox(height: 4),
-                            Text('共${_detail!.episodeCount}集',
+                            Text('共${_detail!.episodeCount}集 · 看到第${_currentEpisode + 1}集',
                                 style: const TextStyle(color: Colors.grey)),
                           ],
                         ),
@@ -194,6 +173,78 @@ class _DetailScreenState extends State<DetailScreen> {
                     ],
                   ),
                 ),
+    );
+  }
+
+  Widget _buildPlayer() {
+    if (_videoController == null || !_videoController!.value.isInitialized) {
+      return Container(
+          color: Colors.black,
+          child: const Center(child: CircularProgressIndicator(color: Colors.white)));
+    }
+    return Container(
+      color: Colors.black,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          VideoPlayer(_videoController!),
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              color: Colors.black54,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      _videoController!.value.isPlaying
+                          ? Icons.pause
+                          : Icons.play_arrow,
+                      color: Colors.white,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _videoController!.value.isPlaying
+                            ? _videoController!.pause()
+                            : _videoController!.play();
+                      });
+                    },
+                  ),
+                  Expanded(
+                    child: VideoProgressIndicator(
+                      _videoController!,
+                      allowScrubbing: true,
+                      colors: const VideoProgressColors(
+                        playedColor: Colors.pink,
+                        backgroundColor: Colors.white24,
+                      ),
+                    ),
+                  ),
+                  if (_currentEpisode > 0)
+                    IconButton(
+                      icon: const Icon(Icons.skip_previous, color: Colors.white),
+                      onPressed: () => _playEpisode(_currentEpisode - 1),
+                    ),
+                  if (_detail != null &&
+                      _currentEpisode < _detail!.episodes.length - 1)
+                    IconButton(
+                      icon: const Icon(Icons.skip_next, color: Colors.white),
+                      onPressed: () => _playEpisode(_currentEpisode + 1),
+                    ),
+                  IconButton(
+                    icon: Icon(
+                        _isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
+                        color: Colors.white),
+                    onPressed: _toggleFullscreen,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

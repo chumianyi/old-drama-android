@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_tab.dart';
+import 'follow_tab.dart';
 import 'search_tab.dart';
 import 'profile_tab.dart';
 
@@ -12,7 +13,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
-  final _tabs = [const HomeTab(), const SearchTab(), const ProfileTab()];
+  final _tabs = const [HomeTab(), FollowTab(), SearchTab(), ProfileTab()];
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +27,10 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icon(Icons.home_outlined),
               selectedIcon: Icon(Icons.home),
               label: '首页'),
+          NavigationDestination(
+              icon: Icon(Icons.bookmark_outline),
+              selectedIcon: Icon(Icons.bookmark),
+              label: '追番'),
           NavigationDestination(
               icon: Icon(Icons.search),
               selectedIcon: Icon(Icons.search),
