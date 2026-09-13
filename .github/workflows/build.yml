@@ -23,6 +23,15 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
 
+      - name: Generate project structure
+        run: |
+          rm -rf android
+          flutter create --org com.example --project-name old_drama --platforms=android .
+          # Set app label
+          sed -i 's/android:label="old_drama"/android:label="老短剧"/' android/app/src/main/AndroidManifest.xml
+          # Allow cleartext for HTTP (video URLs are https, but just in case)
+          sed -i 's/<application/<application android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
+
       - name: Install dependencies
         run: flutter pub get
 
