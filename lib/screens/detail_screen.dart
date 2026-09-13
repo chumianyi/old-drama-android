@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
 import '../models/drama.dart';
 import '../services/api_service.dart';
 
@@ -19,7 +17,6 @@ class _DetailScreenState extends State<DetailScreen> {
   bool _isFav = false;
   int _currentEpisode = 0;
   VideoPlayerController? _videoController;
-  ChewieController? _chewieController;
 
   @override
   void initState() {
@@ -46,15 +43,9 @@ class _DetailScreenState extends State<DetailScreen> {
     setState(() => _currentEpisode = index);
     final ep = _detail!.episodes[index];
     _videoController?.dispose();
-    _chewieController?.dispose();
     _videoController = VideoPlayerController.networkUrl(Uri.parse(ep.videoUrl));
     await _videoController!.initialize();
-    _chewieController = ChewieController(
-      videoPlayerController: _videoController!,
-      autoPlay: true,
-      looping: false,
-      aspectRatio: 16 / 9,
-    );
+    await _videoController!.play();
     if (!mounted) return;
     setState(() {});
   }
@@ -62,7 +53,6 @@ class _DetailScreenState extends State<DetailScreen> {
   @override
   void dispose() {
     _videoController?.dispose();
-    _chewieController?.dispose();
     super.dispose();
   }
 
@@ -90,12 +80,56 @@ class _DetailScreenState extends State<DetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 播放器
                       AspectRatio(
                         aspectRatio: 16 / 9,
-                        child: _chewieController != null &&
+                        child: _videoController != null &&
                                 _videoController!.value.isInitialized
-                            ? Chewie(controller: _chewieController!)
+                            ? Container(
+                                color: Colors.black,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    VideoPlayer(_videoController!),
+                                    Positioned(
+                                      bottom: 0,
+                                      left: 0,
+                                      right: 0,
+                                      child: Container(
+                                        color: Colors.black54,
+                                        child: Row(
+                                          children: [
+                                            IconButton(
+                                              icon: Icon(
+                                                _videoController!.value.isPlaying
+                                                    ? Icons.pause
+                                                    : Icons.play_arrow,
+                                                color: Colors.white,
+                                              ),
+                                              onPressed: () {
+                                                setState(() {
+                                                  _videoController!.value.isPlaying
+                                                      ? _videoController!.pause()
+                                                      : _videoController!.play();
+                                                });
+                                              },
+                                            ),
+                                            Expanded(
+                                              child: VideoProgressIndicator(
+                                                _videoController!,
+                                                allowScrubbing: true,
+                                                colors: const VideoProgressColors(
+                                                  playedColor: Colors.pink,
+                                                  backgroundColor: Colors.white24,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
                             : Container(
                                 color: Colors.black,
                                 child: const Center(
